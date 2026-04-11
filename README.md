@@ -13,24 +13,11 @@
 | `setup.bat`           | Install Python dependencies |
 | `run.bat`             | Launch the app |
 
----
-
-## Requirements
-
-| Tool | Version | Install |
-|------|---------|---------|
-| Python | 3.10+ | https://python.org |
-| PyQt6 | latest | `pip install PyQt6` (done by setup.bat) |
-| FFmpeg | managed in-app | Use the built-in FFmpeg Manager |
-
----
-
 ## Quick Start
 
-1. Run `setup.bat` — installs PyQt6
-2. Run `run.bat` — launches the app
-3. On first launch, click **⬆ FFmpeg Manager** → **Download & Install**
-4. FFmpeg is saved to `./bin/` — no PATH changes needed
+1. Run setup file.
+2. On first launch, click **⬆ FFmpeg Manager** → **Download & Install**
+3. FFmpeg is saved to `./bin/` — no PATH changes needed
 
 ---
 
