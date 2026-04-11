@@ -2,6 +2,9 @@
 
 **Batch TV episode break detector & splitter — Windows GUI**
 
+<img width="1547" height="890" alt="image" src="https://github.com/user-attachments/assets/54517d50-aeb7-4af4-9cfa-22bb4ebfb3dd" />
+
+
 ---
 
 ## Files
