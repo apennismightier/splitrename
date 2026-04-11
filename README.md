@@ -107,16 +107,3 @@ This helps you understand exactly what's in your file and how it'll be handled.
 | ◈ | Splitting in progress |
 | ✓ | Done |
 | ✗ | Error |
-
----
-
-## Building a Standalone .exe
-
-```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name SplitRename \
-  --add-data "ffmpeg_manager.py;." \
-  episode_splitter.py
-```
-
-The `.exe` will be in `dist/`. The `./bin/` folder (with FFmpeg) should sit next to the `.exe`.
