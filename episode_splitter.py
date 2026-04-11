@@ -1619,11 +1619,22 @@ class MainWindow(QMainWindow):
         outer.setSpacing(20)
         outer.setAlignment(Qt.AlignmentFlag.AlignTop)
 
+        def help_btn(tip):
+            """Small ? button that shows a tooltip popup on click."""
+            btn = QPushButton("?")
+            btn.setObjectName("helpBtn")
+            btn.setFixedSize(18, 18)
+            btn.setToolTip(tip)
+            btn.clicked.connect(lambda _, t=tip: QMessageBox.information(None, "Help", t))
+            return btn
+
         def row(layout, label, widget, tip=""):
-            r = QHBoxLayout()
+            r = QHBoxLayout(); r.setSpacing(4)
             lbl = QLabel(label); lbl.setObjectName("settingLabel"); lbl.setFixedWidth(100)
             r.addWidget(lbl); r.addWidget(widget, stretch=1)
-            if tip: widget.setToolTip(tip)
+            if tip:
+                widget.setToolTip(tip)
+                r.addWidget(help_btn(tip))
             layout.addLayout(r)
             return widget
 
@@ -1634,22 +1645,28 @@ class MainWindow(QMainWindow):
         # ── COL 1: Detection + N-parts ──────────────────────────────────────
         col1 = QVBoxLayout(); col1.setSpacing(4); col1.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        det_grp = QGroupBox("Black Frame Detection")
+        det_grp = QGroupBox("Black Frame Detection  (?)")
         det_grp.setObjectName("settingsGroup")
+        det_grp.setToolTip(
+            "Analyzes each video file for black frames to detect episode break points.\n\n"
+            "The app scans the video for sequences of black frames that are long enough\n"
+            "and dark enough to represent the gap between two episodes.\n\n"
+            "Detected break points appear in the Split Points panel on the right."
+        )
         det_lay = QVBoxLayout(det_grp); det_lay.setSpacing(4)
 
         self.black_dur = QDoubleSpinBox()
         self.black_dur.setRange(0.1, 10.0); self.black_dur.setValue(0.5)
         self.black_dur.setSingleStep(0.1);  self.black_dur.setSuffix(" s")
-        row(det_lay, "Min duration:", self.black_dur, "Minimum length of black to count as a break")
+        row(det_lay, "Min duration:", self.black_dur, "Minimum consecutive seconds of black frames required to count as an episode break.\n\nLower = detects shorter breaks (more splits).\nHigher = only catches long black gaps (fewer splits).\n\nRecommended: 0.5s for TV episodes.")
 
         self.pix_th = QDoubleSpinBox()
         self.pix_th.setRange(0.01, 0.5); self.pix_th.setValue(0.10); self.pix_th.setSingleStep(0.01)
-        row(det_lay, "Pixel thresh:", self.pix_th, "How dark pixels must be")
+        row(det_lay, "Pixel thresh:", self.pix_th, "How dark each pixel must be to count as 'black'.\n\n0.10 = pixels must be very dark (strict).\n0.30 = allows near-black/dark pixels (permissive).\n\nRecommended: 0.10 for most content.")
 
         self.pic_th = QDoubleSpinBox()
         self.pic_th.setRange(0.01, 0.99); self.pic_th.setValue(0.98); self.pic_th.setSingleStep(0.01)
-        row(det_lay, "Picture thresh:", self.pic_th, "Fraction of frame that must be dark")
+        row(det_lay, "Picture thresh:", self.pic_th, "What fraction of the frame must be black to count as a black frame.\n\n0.98 = 98% of the frame must be black (strict).\n0.80 = 80% must be black (permissive).\n\nRecommended: 0.98 to avoid false detections.")
 
         divider(det_lay)
 
@@ -1697,25 +1714,25 @@ class MainWindow(QMainWindow):
 
         self.rb_keysnap = QRadioButton("Keyframe snap  (lossless, no overlap)")
         self.rb_keysnap.setObjectName("radioBtn"); self.rb_keysnap.setChecked(True)
-        self.rb_keysnap.setToolTip("Cuts at a keyframe inside the black gap — no re-encode, no overlap.")
+        self.rb_keysnap.setToolTip("KEYFRAME SNAP (Recommended)\n\nFinds the nearest video keyframe inside the black gap and cuts there.\n\n✓ No quality loss — video is not re-encoded\n✓ No playback overlap between episodes\n✓ Fast — just copies the video stream\n\nBest for most situations.")
         self._cut_mode_group.addButton(self.rb_keysnap, 0)
         cut_lay.addWidget(self.rb_keysnap)
 
         self.rb_accurate = QRadioButton("Accurate re-encode  (frame-exact)")
         self.rb_accurate.setObjectName("radioBtn")
-        self.rb_accurate.setToolTip("Re-encodes for frame-exact cuts using Output Encoding settings.")
+        self.rb_accurate.setToolTip("ACCURATE RE-ENCODE\n\nDecodes and re-encodes the video for a frame-exact cut at the precise timestamp.\n\n✓ Exact cut at any frame\n✗ Slower — entire file is re-encoded\n✗ Some quality loss depending on CRF/bitrate settings\n\nUse when exact frame accuracy matters more than speed.")
         self._cut_mode_group.addButton(self.rb_accurate, 1)
         cut_lay.addWidget(self.rb_accurate)
 
         self.rb_smart = QRadioButton("Smart encode  (re-encode start only)")
         self.rb_smart.setObjectName("radioBtn")
-        self.rb_smart.setToolTip("Re-encodes only the first few seconds after each cut — fast and accurate.")
+        self.rb_smart.setToolTip("SMART ENCODE\n\nRe-encodes only the first few seconds after each cut point, then stream-copies the rest.\n\n✓ Frame-accurate cuts\n✓ Much faster than full re-encode (only seconds of video re-encoded)\n✓ Minimal quality loss\n\nGood balance between accuracy and speed.")
         self._cut_mode_group.addButton(self.rb_smart, 2)
         cut_lay.addWidget(self.rb_smart)
 
         self.rb_streamcopy = QRadioButton("Stream copy  (fast, may overlap)")
         self.rb_streamcopy.setObjectName("radioBtn")
-        self.rb_streamcopy.setToolTip("No re-encode but Part 2 may start a few seconds early.")
+        self.rb_streamcopy.setToolTip("STREAM COPY\n\nCuts at the nearest keyframe without re-encoding, ignoring the black frame position.\n\n✓ Fastest — no re-encoding at all\n✓ No quality loss\n✗ The second file may start a few seconds before the actual break point\n✗ May include the end of the previous episode\n\nUse when speed is the priority and slight overlap is acceptable.")
         self._cut_mode_group.addButton(self.rb_streamcopy, 3)
         cut_lay.addWidget(self.rb_streamcopy)
 
@@ -1726,8 +1743,12 @@ class MainWindow(QMainWindow):
         self.rename_cb = QCheckBox("Rename output files (TMDB / TVDB)")
         self.rename_cb.setObjectName("radioBtn")
         self.rename_cb.setToolTip(
-            "After splitting, open the Episode Naming dialog to rename\n"
-            "output files using TMDB or TVDB episode titles automatically."
+            "RENAME OUTPUT FILES (TMDB / TVDB)\n\n"
+            "When checked, the Episode Naming dialog opens automatically after splitting.\n\n"
+            "The output files are loaded into the dialog, which searches TMDB and TVDB\n"
+            "for the show name and episode titles, then renames files like:\n\n"
+            "  Curious George - S01E11 - Hundley Goes to School.mkv\n\n"
+            "API keys are pre-configured — just search for your show and confirm."
         )
         cut_lay.addWidget(self.rename_cb)
 
@@ -1746,7 +1767,7 @@ class MainWindow(QMainWindow):
 
         self.out_container = QComboBox(); self.out_container.setObjectName("comboBox")
         self.out_container.addItems(["Same as source", "MP4 (.mp4)", "MKV (.mkv)"])
-        row(enc_lay, "Container:", self.out_container, "Output container format")
+        row(enc_lay, "Container:", self.out_container, "OUTPUT CONTAINER\n\nThe file format wrapper for the output files.\n\n• Same as source — keeps the original format (recommended)\n• MP4 — widely compatible, good for streaming/devices\n• MKV — supports multiple audio tracks, subtitles, chapters")
 
         self.video_codec = QComboBox(); self.video_codec.setObjectName("comboBox")
         self.video_codec.addItems([
@@ -1757,17 +1778,17 @@ class MainWindow(QMainWindow):
             "AV1    (libsvtav1)  — CPU, smallest files, slowest",
         ])
         self.video_codec.currentIndexChanged.connect(self._on_codec_changed)
-        row(enc_lay, "Video codec:", self.video_codec, "H.264: compatible. H.265/HEVC: smaller. AV1: smallest.")
+        row(enc_lay, "Video codec:", self.video_codec, "VIDEO CODEC\n\n• Same as source (copy) — no re-encode, fastest, no quality loss\n• H.264 (libx264) — most compatible codec, works on all devices\n• H.265 (libx265) — ~50% smaller files than H.264 at same quality, CPU only\n• HEVC (hevc_nvenc) — GPU-accelerated H.265, requires NVIDIA graphics card\n• AV1 (libsvtav1) — smallest files, very slow encoding, limited device support\n\nNote: codec options only apply when using Accurate or Smart encode mode.")
 
         self.audio_codec = QComboBox(); self.audio_codec.setObjectName("comboBox")
         self.audio_codec.addItems(["AAC", "AC3 (Dolby)", "Copy (no re-encode)"])
-        row(enc_lay, "Audio codec:", self.audio_codec, "AAC: universal. Copy: fastest.")
+        row(enc_lay, "Audio codec:", self.audio_codec, "AUDIO CODEC\n\n• AAC — universal compatibility, good quality at small size\n• AC3 (Dolby) — Dolby Digital surround sound, common in Blu-ray/broadcast\n• Copy — keeps the original audio unchanged, fastest, no quality loss\n\nRecommended: Copy unless you specifically need to transcode audio.")
 
         self.enc_speed = QComboBox(); self.enc_speed.setObjectName("comboBox")
         self.enc_speed.addItems(["Lossless", "Ultra Fast", "Very Fast", "Fast", "Medium", "Slow", "Very Slow"])
         self.enc_speed.setCurrentText("Fast")
         self.enc_speed.currentIndexChanged.connect(self._on_speed_changed)
-        row(enc_lay, "Speed:", self.enc_speed, "Encode speed vs file size trade-off")
+        row(enc_lay, "Speed:", self.enc_speed, "ENCODE SPEED (Preset)\n\nControls the trade-off between encoding speed and output file size.\n\n• Lossless — no quality loss at all (very large files)\n• Ultra Fast / Very Fast — large files, poor compression, quick\n• Fast — good balance (recommended for most use)\n• Medium / Slow / Very Slow — smaller files, better compression, slow\n\nQuality (CRF) stays the same — only file size changes with speed.")
 
         divider(enc_lay)
 
@@ -1784,11 +1805,11 @@ class MainWindow(QMainWindow):
         self._quality_mode_group.idToggled.connect(self._on_quality_mode_changed)
 
         self.crf_spin = QSpinBox(); self.crf_spin.setRange(0, 51); self.crf_spin.setValue(18)
-        row(enc_lay, "CRF value:", self.crf_spin, "Lower = bigger file, better quality")
+        row(enc_lay, "CRF value:", self.crf_spin, "CRF (Constant Rate Factor)\n\nControls output quality when CRF mode is selected.\n\nH.264: 0=lossless, 18=high quality, 23=default, 28=smaller\nH.265: 0=lossless, 24=high quality, 28=default, 32=smaller\nAV1:   0=lossless, 25=high quality, 35=default, 45=smaller\n\nLower number = better quality, larger file.\nHigher number = lower quality, smaller file.")
 
         self.bitrate_edit = QLineEdit(); self.bitrate_edit.setObjectName("timeInput")
         self.bitrate_edit.setPlaceholderText("e.g. 4000"); self.bitrate_edit.setEnabled(False)
-        row(enc_lay, "Bitrate (kbps):", self.bitrate_edit, "Target bitrate in kbps")
+        row(enc_lay, "Bitrate (kbps):", self.bitrate_edit, "TARGET BITRATE\n\nSets a fixed target bitrate for encoding (instead of CRF quality mode).\n\nTypical values:\n• SD (480p):    1,500 – 3,000 kbps\n• HD (1080p):   3,000 – 8,000 kbps\n• 4K (2160p):  15,000 – 40,000 kbps\n\nUse this when you need predictable file sizes rather than consistent quality.")
 
         col3.addWidget(enc_grp)
         outer.addLayout(col3, stretch=2)
@@ -2866,6 +2887,12 @@ class MainWindow(QMainWindow):
             #splitIcon { color: #f97316; font-size: 11px; }
             #splitTimecode { color: #38bdf8; font-size: 12px; font-weight: bold; }
             #splitConf { color: #64748b; font-size: 11px; }
+            #helpBtn {
+                background-color: #21262d; color: #8b949e;
+                border: 1px solid #30363d; border-radius: 9px;
+                font-size: 10px; font-weight: bold; padding: 0;
+            }
+            #helpBtn:hover { color: #f97316; border-color: #f97316; }
             #splitEditBtn {
                 background-color: #21262d; color: #c9d1d9;
                 border: 1px solid #30363d; border-radius: 3px;
