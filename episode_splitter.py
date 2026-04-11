@@ -848,19 +848,42 @@ class SplitWorker(QThread):
 
         try:
             # ── Step 1: Re-encode the intro (t_start → KF_after) ──────────
-            # Use -ss AFTER -i for frame-accurate start
-            cmd_intro = [
-                ffmpeg, "-y",
-                "-i", job.path,
-                "-ss", f"{t_start:.6f}",
-                "-t",  f"{intro_dur:.6f}",
-                "-c:v", "libx264", "-crf", str(self.crf), "-preset", self.preset,
-                "-c:a", "aac", "-b:a", "192k",
-                "-map", "0:v:0", "-map", "0:a:0",
-                intro_path
-            ]
+            # Use the same codec family as the source so the concat step works.
+            # Hardcoding libx264/aac breaks when source is hevc/eac3 — the
+            # concat fails because intro and rest have different codecs.
+            src_vcodec = job.streams.get("video_codec", "hevc")
+            src_acodec = job.streams.get("audio_codec", "aac")
+
+            # Video encoder matching source codec
+            if src_vcodec in ("hevc", "h265"):
+                v_enc = ["-c:v", "libx265", "-crf", str(max(0, self.crf)), "-preset", self.preset]
+            elif src_vcodec in ("h264", "avc"):
+                v_enc = ["-c:v", "libx264", "-crf", str(self.crf), "-preset", self.preset]
+            elif src_vcodec == "av1":
+                v_enc = ["-c:v", "libsvtav1", "-crf", str(self.crf), "-preset", "8"]
+            else:
+                v_enc = ["-c:v", "libx264", "-crf", "18", "-preset", "fast"]
+
+            # Audio: formats like eac3/ac3/dts can't be re-encoded to themselves
+            # easily, so transcode to aac for both intro and rest so concat works
+            if src_acodec in ("eac3", "ac3", "dts", "truehd", "mlp"):
+                a_enc_intro = ["-c:a", "aac", "-b:a", "192k"]
+                a_enc_rest  = ["-c:a", "aac", "-b:a", "192k"]
+                self.log_message.emit(f"     Smart encode: {src_acodec} -> AAC for compatibility")
+            else:
+                a_enc_intro = ["-c:a", "copy"]
+                a_enc_rest  = ["-c:a", "copy"]
+
+            cmd_intro = (
+                [ffmpeg, "-y", "-i", job.path,
+                 "-ss", f"{t_start:.6f}", "-t", f"{intro_dur:.6f}"]
+                + v_enc + a_enc_intro
+                + ["-map", "0:v:0", "-map", "0:a:0",
+                   "-avoid_negative_ts", "make_zero", intro_path]
+            )
             r1 = _run(cmd_intro, capture_output=True, text=True, timeout=300)
             if r1.returncode != 0:
+                self.log_message.emit(f"     Smart encode intro failed: {r1.stderr[-400:]}")
                 return False
 
             self.log_message.emit(
@@ -868,34 +891,29 @@ class SplitWorker(QThread):
                 f"{rest_dur:.1f}s stream copied"
             )
 
-            # ── Step 2: Stream copy the rest (KF_after → t_end) ───────────
-            cmd_rest = [
-                ffmpeg, "-y",
-                "-ss", f"{kf_after:.6f}",
-                "-i", job.path,
-                "-t",  f"{rest_dur:.6f}",
-                "-c", "copy", "-map", "0",
-                "-avoid_negative_ts", "make_zero",
-                rest_path
-            ]
+            # ── Step 2: Copy/transcode rest (KF_after → t_end) ────────────
+            cmd_rest = (
+                [ffmpeg, "-y", "-ss", f"{kf_after:.6f}", "-i", job.path,
+                 "-t", f"{rest_dur:.6f}", "-c:v", "copy"]
+                + a_enc_rest
+                + ["-map", "0:v:0", "-map", "0:a:0",
+                   "-avoid_negative_ts", "make_zero", rest_path]
+            )
             r2 = _run(cmd_rest, capture_output=True, text=True, timeout=7200)
             if r2.returncode != 0:
+                self.log_message.emit(f"     Smart encode rest failed: {r2.stderr[-400:]}")
                 return False
 
             # ── Step 3: Concat intro + rest ────────────────────────────────
-            # Write concat list with safely-quoted paths
             with open(concat_txt, "w", encoding="utf-8") as cf:
                 cf.write("file " + repr(intro_path) + "\n")
                 cf.write("file " + repr(rest_path) + "\n")
 
-            cmd_cat = [
-                ffmpeg, "-y",
-                "-f", "concat", "-safe", "0",
-                "-i", concat_txt,
-                "-c", "copy",
-                out_path
-            ]
+            cmd_cat = [ffmpeg, "-y", "-f", "concat", "-safe", "0",
+                       "-i", concat_txt, "-c", "copy", out_path]
             r3 = _run(cmd_cat, capture_output=True, text=True, timeout=7200)
+            if r3.returncode != 0:
+                self.log_message.emit(f"     Smart encode concat failed: {r3.stderr[-400:]}")
             return r3.returncode == 0
 
         except Exception as e:
