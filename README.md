@@ -13,11 +13,24 @@
 | `setup.bat`           | Install Python dependencies |
 | `run.bat`             | Launch the app |
 
+---
+
+## Requirements
+
+| Tool | Version | Install |
+|------|---------|---------|
+| Python | 3.10+ | https://python.org |
+| PyQt6 | latest | `pip install PyQt6` (done by setup.bat) |
+| FFmpeg | managed in-app | Use the built-in FFmpeg Manager |
+
+---
+
 ## Quick Start
 
-1. Run setup file.
-2. On first launch, click **⬆ FFmpeg Manager** → **Download & Install**
-3. FFmpeg is saved to `./bin/` — no PATH changes needed
+1. Run `setup.bat` — installs PyQt6
+2. Run `run.bat` — launches the app
+3. On first launch, click **⬆ FFmpeg Manager** → **Download & Install**
+4. FFmpeg is saved to `./bin/` — no PATH changes needed
 
 ---
 
@@ -107,3 +120,16 @@ This helps you understand exactly what's in your file and how it'll be handled.
 | ◈ | Splitting in progress |
 | ✓ | Done |
 | ✗ | Error |
+
+---
+
+## Building a Standalone .exe
+
+```bash
+pip install pyinstaller
+pyinstaller --onefile --windowed --name SplitRename \
+  --add-data "ffmpeg_manager.py;." \
+  episode_splitter.py
+```
+
+The `.exe` will be in `dist/`. The `./bin/` folder (with FFmpeg) should sit next to the `.exe`.
