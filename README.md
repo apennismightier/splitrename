@@ -176,16 +176,4 @@ Every setting has a **[?]** button that opens a plain-English popup explaining w
 3. Launch SplitRename
 4. On first launch, click **FFmpeg Manager** to download FFmpeg automatically
 
-### Building from source
-
-```bat
-git clone https://github.com/apennismightier/episodesplit.git
-cd episodesplit
-build.bat
-```
-
-Requires Python 3.10+ and Inno Setup 6 for the installer step.
-
----
-
 *SplitRename v1.6.2 · by apennismightier*
