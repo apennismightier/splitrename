@@ -1,135 +1,70 @@
-# SplitRename
+________________________
+WHAT IT DOES
 
-**Batch TV episode break detector & splitter — Windows GUI**
+SplitRename is a Windows desktop app that takes video files containing multiple TV episodes — e.g. Show.S01E01-E02.mkv — splits them into individual episode files, and renames them using real episode titles from TMDB and TVDB.
+________________________
+FILE MANAGEMENT
+Drag and drop video files or folders directly into the app
+Supports MKV, MP4, AVI, MOV, TS, M2TS, WMV
+Multi-select files for batch processing
+File list shows live status for every file:
+○ queued → ◌ analyzing → ◉ ready → ◈ splitting → ✓ done / ✗ error
+________________________
+BLACK FRAME DETECTION
 
----
+The app scans each video for the black frames that appear between episodes and uses them as cut points. Three tunable settings — each has a [?] help button:
+Min Duration — how many seconds of black must appear to count as a break (default: 0.50s)
+Pixel Threshold — how dark each pixel must be to count as "black" (default: 0.10)
+Picture Threshold — what fraction of the frame must be dark (default: 0.98)
+________________________
+CUT MODES
 
-## Files
+Keyframe Snap — Fastest · Lossless
+Cuts at the nearest keyframe inside the black gap. No re-encode, no quality loss. Recommended for most use.
+Smart Encode — Fast · Near-lossless
+Re-encodes only the first few seconds after each cut for frame accuracy, then stream-copies the rest. Best of both worlds.
+Accurate Re-encode — Slow · Configurable quality
+Full re-encode for frame-exact cuts using your chosen codec and quality settings.
+Stream Copy — Fastest · Lossless
+No re-encode at all. May start a few seconds before the actual cut point.
+________________________
+OUTPUT ENCODING OPTIONS
 
-| File | Purpose |
-|------|---------|
-| `episode_splitter.py` | Main GUI application |
-| `ffmpeg_manager.py`   | FFmpeg auto-updater module |
-| `setup.bat`           | Install Python dependencies |
-| `run.bat`             | Launch the app |
+When re-encoding, you control:
+Container — Same as source · MP4 · MKV
+Video Codec — Same as source (copy) · H.264 · H.265 · HEVC NVENC (GPU/NVIDIA) · AV1
+Audio Codec — AAC · AC3 (Dolby) · Copy
+Speed Preset — Lossless → Ultra Fast → Fast → Medium → Very Slow
+Quality Mode — CRF (quality-based) or fixed Bitrate (kbps)
+________________________
+SPLIT COUNT CONTROL
+Auto-detect — splits at every detected black frame
+Use first N breaks — if a file has 3 detected breaks but you only want 2 output files, set N=2 and only the first break is used
+________________________
+BATCH PROCESSING
+Batch Analyze All — scans all files for break points with no splitting, so you can review detected timecodes before committing
+Batch: Analyze + Split All — fully automated, analyze then split in one shot
+Analyze / Split — step-by-step buttons for manual control
+________________________
+MANUAL SPLIT POINT EDITING
 
----
+Click any file after analysis and the right panel shows every detected break with its timecode:
+Edit any timecode — click Edit and type a new time in MM:SS or HH:MM:SS
+Delete any break point you don't want
++ Add — type any timecode in the input box to insert a manual split point
+________________________
+EPISODE RENAMING — TMDB / TVDB
 
-## Requirements
+A built-in FileBot-style renaming module. No account required — API keys are pre-configured.
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Python | 3.10+ | https://python.org |
-| PyQt6 | latest | `pip install PyQt6` (done by setup.bat) |
-| FFmpeg | managed in-app | Use the built-in FFmpeg Manager |
-
----
-
-## Quick Start
-
-1. Run `setup.bat` — installs PyQt6
-2. Run `run.bat` — launches the app
-3. On first launch, click **⬆ FFmpeg Manager** → **Download & Install**
-4. FFmpeg is saved to `./bin/` — no PATH changes needed
-
----
-
-## FFmpeg Auto-Updater
-
-Click **⬆ FFmpeg Manager** in the header at any time to:
-
-- See your installed FFmpeg version and where it lives
-- Check GitHub (BtbN builds) for the latest release
-- Download & install with one click — saved to `./bin/ffmpeg.exe`
-
-**How it works:**
-- Source: [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) — the most widely trusted Windows FFmpeg build
-- Downloads the nightly GPL build (`ffmpeg-master-latest-win64-gpl.zip`)
-- Extracts `ffmpeg.exe` and `ffprobe.exe` into `./bin/`
-- Stores a `.version_cache.json` to track what's installed
-- Future "check for updates" compares the publish date of the cached build vs latest GitHub release
-- The app always prefers `./bin/ffmpeg.exe` over any system PATH version
-
----
-
-## MP4 & MKV Support
-
-The app detects your file's container and applies format-specific FFmpeg flags:
-
-### MP4
-- **Stream copy** (no re-encoding) — fast and lossless
-- `-movflags +faststart` — moves the moov atom to the front of the file, making output MP4s stream correctly in browsers and media players
-- `-map 0:v -map 0:a` — copies video and audio streams
-- **Subtitles:** only `mov_text` / `tx3g` subtitle tracks are kept (the only formats MP4 supports). ASS/SSA/SRT tracks are silently dropped since MP4 can't carry them natively
-- `-avoid_negative_ts make_zero` — fixes PTS/DTS timestamp issues at cut points
-
-### MKV
-- **Stream copy** — fast and lossless
-- `-map 0` — **all streams preserved**: video, audio, every subtitle track (ASS/SSA/SRT/PGS), chapter markers, attachments, fonts
-- `-avoid_negative_ts make_zero` — prevents negative PTS glitches common in broadcast recordings
-
-### Fallback (automatic)
-If stream copy fails on any segment (e.g. corrupt index, incompatible edit point, muxer error), the app automatically retries with:
-- `libx264` video re-encode (CRF 18, fast preset)
-- `aac` audio at 192kbps
-
-The log panel will show `⚠ Stream copy failed — retrying with re-encode` if this happens.
-
----
-
-## Stream Info Display
-
-After analysis, the right panel shows a stream info bar for the selected file:
-
-```
-Video: H264 1920×1080  |  Audio: AAC 2ch  |  Subs: ass  |  📦 MKV — all streams preserved
-```
-
-This helps you understand exactly what's in your file and how it'll be handled.
-
----
-
-## How to Use
-
-1. **Add files** — drag & drop `.mp4` / `.mkv` (and others) onto the list, or click **+ Add Files**
-2. **Tune detection** (optional) — adjust the three sliders for your recording type
-3. Click **▶ ANALYZE FILES** — FFmpeg scans for black frame segments
-4. **Review split points** in the right panel — toggle, delete, or add manual timestamps
-5. Choose an output folder (optional) — default is an `episodes/` subfolder next to the source
-6. Click **✂ SPLIT EPISODES** — outputs `ShowName_E01.mp4`, `_E02.mp4`, etc.
-
----
-
-## Detection Settings
-
-| Setting | Default | When to change |
-|---------|---------|----------------|
-| Min black duration | 0.5s | Lower to 0.2s for short bumpers; raise to 2.0s for less noise |
-| Pixel threshold | 0.10 | Raise to 0.15–0.20 for recordings with station watermarks |
-| Picture threshold | 0.98 | Lower to 0.90–0.95 for VHS / analog recordings |
-
----
-
-## File Status Icons
-
-| Icon | Meaning |
-|------|---------|
-| ○ | Queued |
-| ◌ | Analyzing |
-| ◉ | Ready to split |
-| ◈ | Splitting in progress |
-| ✓ | Done |
-| ✗ | Error |
-
----
-
-## Building a Standalone .exe
-
-```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name SplitRename \
-  --add-data "ffmpeg_manager.py;." \
-  episode_splitter.py
-```
-
-The `.exe` will be in `dist/`. The `./bin/` folder (with FFmpeg) should sit next to the `.exe`.
+How it works:
+Search for your TV show by name and optional year
+Choose to search Both, TMDB only, or TVDB only — switch between them anytime
+Load the full episode list for any season
+The app maps each output file to the correct episode automatically using the episode number from the source filename
+Preview every output filename before committing — e.g. Curious George - S01E11 - Hundley Goes to School.mkv
+Double-click any title to edit it manually
+Click Confirm to rename all files instantly
+Two ways to access it:
+Check "Rename output files (TMDB/TVDB)" in the Cut Mode section → the dialog opens automatically after splitting, pre-loaded with your fresh output files
+Click Rename Files in the action bar at any time → pick any folder of video files to rename without splitting
