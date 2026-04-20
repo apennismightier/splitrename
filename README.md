@@ -13,7 +13,7 @@ A Windows desktop app that splits multi-episode video files at black frame bound
 - [Output Encoding](#-output-encoding-options)
 - [Split Count Control](#-split-count-control)
 - [Batch Processing](#-batch-processing)
-- [Manual Split Point Editing](#-manual-split-point-editing)
+- [Manual Split Points](#-manual-split-points)
 - [Episode Renaming](#️-episode-renaming--tmdb--tvdb)
 - [Power Management](#-power-management)
 - [Cancel](#-cancel)
@@ -37,9 +37,9 @@ SplitRename takes video files containing multiple TV episodes — e.g. `Show.S01
 - Multi-select files for batch processing
 - File list shows live status for every file:
 
-```
+\`\`\`
 ○ queued  →  ◌ analyzing  →  ◉ ready  →  ◈ splitting  →  ✓ done  /  ✗ error
-```
+\`\`\`
 
 ---
 
@@ -53,6 +53,10 @@ The app scans each video for the black frames that appear between episodes and u
 | Pixel Threshold | How dark each pixel must be to count as "black" | 0.10 |
 | Picture Threshold | Fraction of the frame that must be dark | 0.98 |
 
+### Ignore Credits Break
+
+Check **"Ignore credits break (will ignore all breaks within the first 5 minutes)"** to prevent opening credits from being detected as a split point. Useful for shows that have a black frame after the cold open or title card.
+
 ---
 
 ## ✂️ Cut Modes
@@ -60,9 +64,25 @@ The app scans each video for the black frames that appear between episodes and u
 | Mode | Speed | Quality | Notes |
 |---|---|---|---|
 | **Keyframe Snap** | Fastest | Lossless | Cuts at nearest keyframe — recommended for most use |
-| **Smart Encode** | Fast | Near-lossless | Re-encodes only the first few seconds after each cut, copies the rest |
+| **Smart Encode** | Fast | Near-lossless | Re-encodes only the first few seconds at each cut, copies the rest |
 | **Accurate Re-encode** | Slow | Configurable | Full re-encode for frame-exact cuts |
 | **Stream Copy** | Fastest | Lossless | May start a few seconds before the actual cut point |
+
+### Smart Encode — How It Works
+
+Smart Encode achieves frame-accurate cuts without a full re-encode:
+
+1. Probes the source file to find the exact keyframe (`K`) at the cut point
+2. Re-encodes only the opening seconds of each segment up to `K` (typically 2–5 seconds)
+3. Stream-copies the rest of the segment directly — fast, no quality loss
+4. Concatenates both parts using MKV intermediates to avoid timestamp issues
+5. Remuxes to your chosen output container
+
+Handles H.264, H.265/HEVC, AV1 video and auto-transcodes EAC3/AC3/DTS audio to AAC where needed.
+
+### Rename Output Files
+
+Check **"Rename output files (TMDB/TVDB)"** in the Cut Mode section to automatically open the Episode Renaming dialog after splitting, pre-loaded with the freshly split files.
 
 ---
 
@@ -95,13 +115,17 @@ The app scans each video for the black frames that appear between episodes and u
 
 ---
 
-## ✏️ Manual Split Point Editing
+## ✏️ Manual Split Points
 
-Click any file after analysis and the right panel shows every detected break with its timecode:
+The right-hand panel shows detected break points for whichever file is selected. You can edit the split list at any time:
 
 - **Edit** any timecode — click Edit and type a new time in `MM:SS` or `HH:MM:SS`
 - **Delete** any break point you don't want
 - **+ Add** — type any timecode in the input box to insert a manual split point
+
+### Splitting Without Analysis
+
+You don't need to run Analyze first. Add a file, type a timecode in the split point box, and click **+ Add**. The Split button activates immediately. Clicking Split probes the file on the fly and cuts at your manual point — no full black frame scan needed.
 
 ---
 
@@ -112,23 +136,23 @@ A built-in FileBot-style renaming module. **No account required** — API keys a
 ### How it works
 
 1. Search for your TV show by name and optional year
-2. Choose to search **Both**, **TMDB only**, or **TVDB only** — switch between them anytime
-3. Load the full episode list for any season
-4. The app maps each output file to the correct episode automatically, using the episode number from the source filename to set the starting offset
-5. Preview every output filename before committing — e.g. `Curious George - S01E11 - Hundley Goes to School.mkv`
+2. Choose to search **Both**, **TMDB only**, or **TVDB only** using the radio buttons — or use the **Search TMDB** / **Search TVDB** quick-switch buttons to re-run the search instantly
+3. Click **Load All Episodes** to fetch every season in one shot
+4. The app reads the `S##E##` pattern from each filename and maps it to the correct episode automatically — works across multiple seasons in the same batch
+5. Preview every output filename before committing — e.g. `Curious George - S05E03 - The Big Sleepy.mkv`
 6. Double-click any title to edit it manually
 7. Click **✓ Confirm** to rename all files instantly
 
 ### Two ways to access it
 
-- Check **"Rename output files (TMDB/TVDB)"** in the Cut Mode section → the dialog opens automatically after splitting, pre-loaded with your fresh output files
-- Click **🏷 Rename Files** in the action bar at any time → pick any folder of video files to rename without splitting anything
+- Check **"Rename output files (TMDB/TVDB)"** in the Cut Mode section → dialog opens automatically after splitting
+- Click **🏷 Rename Files** in the action bar at any time → rename any folder of video files without splitting
 
 ---
 
 ## 💤 Power Management
 
-- The PC is **automatically prevented from sleeping or hibernating** during any batch job — no configuration needed
+- The PC is **automatically prevented from sleeping or hibernating** during any batch job
 - A **"When done"** dropdown in the action bar controls what happens when the batch finishes:
 
 | Option | Behaviour |
@@ -144,6 +168,7 @@ A built-in FileBot-style renaming module. **No account required** — API keys a
 
 - A **Cancel** button appears in the action bar whenever a job is running
 - Stops the job cleanly **after the current file finishes** — nothing gets abandoned mid-encode
+- Button changes to "Cancelling…" and disables itself to prevent double-clicks
 
 ---
 
@@ -151,7 +176,8 @@ A built-in FileBot-style renaming module. **No account required** — API keys a
 
 - SplitRename manages its own copy of FFmpeg — **no separate installation required**
 - Stored in `%LOCALAPPDATA%\SplitRename\bin\`
-- The **FFmpeg Manager** button in the header lets you check the current version and update automatically
+- **Auto-update on startup** — SplitRename silently checks for a newer FFmpeg build each time it launches. If one is found it downloads and installs automatically with no interruptions. A small **"↑ Updated to vX"** label appears under the version in the top-right corner if an update was applied
+- Click **FFmpeg Manager** in the header to manually check the version, force a reinstall, or see the installed path
 
 ---
 
@@ -164,8 +190,8 @@ Every setting has a **[?]** button that opens a plain-English popup explaining w
 ## Requirements
 
 - Windows 10 or later
-- FFmpeg (auto-managed — downloaded on first launch)
-- Internet connection for TMDB/TVDB lookups
+- FFmpeg (auto-managed — downloaded and updated automatically on first run)
+- Internet connection for TMDB/TVDB lookups and FFmpeg auto-update
 
 ---
 
@@ -173,7 +199,8 @@ Every setting has a **[?]** button that opens a plain-English popup explaining w
 
 1. Download the latest `SplitRename_Setup.exe` from [Releases](../../releases)
 2. Run the installer
-3. Launch SplitRename
-4. On first launch, click **FFmpeg Manager** to download FFmpeg automatically
+3. Launch SplitRename — FFmpeg downloads automatically on first run
 
-*SplitRename v1.6.2 · by apennismightier*
+---
+
+*SplitRename v1.6.4 · by apennismightier*
