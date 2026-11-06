@@ -213,8 +213,6 @@ A built-in FileBot-style renaming module. **No account required** — API keys a
 
 ## 🛠️ FFmpeg Manager
 
-![FFmpeg Manager](docs/screenshots/05_ffmpeg_manager.png)
-
 - SplitRename manages its own copy of FFmpeg — **no separate installation required**
 - Stored in `%LOCALAPPDATA%\SplitRename\bin\`
 - Downloads a stable **BtbN** build on first launch and runs a real-pipeline self-test (encode a test clip, then seek + stream-copy and seek + re-encode it to MKV) before activating it; a failed build is rolled back automatically
